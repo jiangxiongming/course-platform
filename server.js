@@ -38,27 +38,8 @@ function serveFile(res, filePath) {
   }
 }
 
-// Call pipeline.js
-function runPipeline(userInput) {
-  return new Promise((resolve, reject) => {
-    const { exec } = require('child_process');
-    const scriptPath = path.join(__dirname, 'pipeline.js');
-    exec(`node "${scriptPath}" "${userInput.replace(/"/g, '\\"')}"`, {
-      timeout: 120000,
-      maxBuffer: 1024 * 1024
-    }, (err, stdout, stderr) => {
-      if (err) return reject(err.message);
-      // Find JSON in output
-      const jsonMatch = stdout.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return reject('No JSON output found');
-      try {
-        resolve(JSON.parse(jsonMatch[0]));
-      } catch (e) {
-        reject('JSON parse failed: ' + e.message);
-      }
-    });
-  });
-}
+// Pipeline.js 直接加载（不用 exec，更稳定）
+const { runPipeline } = require('./pipeline.js');
 
 // HTML pages
 function getIndexHTML() {
