@@ -41,6 +41,31 @@ function serveFile(res, filePath) {
 // Pipeline.js 直接加载（不用 exec，更稳定）
 const { runPipeline } = require('./pipeline.js');
 
+// ══════════════════════════════════════════
+// 访问令牌保护（防止 API 被滥用）
+// 在 Zeabur 环境变量中设置 ACCESS_TOKEN
+// 网页前端调用时自动带令牌，用户无感知
+// ══════════════════════════════════════════
+
+const ACCESS_TOKEN = process.env.ACCESS_TOKEN || '';
+
+function checkToken(req, res) {
+  if (!ACCESS_TOKEN) return true; // 没设令牌就不校验
+  const token = req.headers['x-token'] || parsedQueryToken(req);
+  if (token === ACCESS_TOKEN) return true;
+  if (req.url.startsWith('/api/')) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: '未授权访问，请提供有效令牌' }));
+    return false;
+  }
+  return true;
+}
+
+function parsedQueryToken(req) {
+  const u = require('url').parse(req.url, true);
+  return u.query.token || '';
+}
+
 // 通用 AI 调用（DeepSeek API）
 async function callAI(systemPrompt, userInput) {
   const key = process.env.DEEPSEEK_API_KEY;
@@ -277,6 +302,7 @@ function getIndexHTML() {
 </div>
 
 <script>
+const API_TOKEN = '${ACCESS_TOKEN}';
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -301,7 +327,7 @@ async function generate() {
   try {
     const res = await fetch('/api/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-token': API_TOKEN },
       body: JSON.stringify({ input })
     });
     const data = await res.json();
@@ -364,7 +390,7 @@ async function askTutor() {
   try {
     const res = await fetch('/api/tutor', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-token': API_TOKEN },
       body: JSON.stringify({ question, grade, subject })
     });
     const data = await res.json();
@@ -387,6 +413,16 @@ async function askTutor() {
 const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname;
+
+  // 访问令牌校验（API 路由需要令牌，网页不需要）
+  if (pathname.startsWith('/api/') && ACCESS_TOKEN) {
+    const token = req.headers['x-token'] || parsed.query.token || '';
+    if (token !== ACCESS_TOKEN) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: '未授权访问' }));
+      return;
+    }
+  }
 
   // API: generate course
   if (pathname === '/api/generate' && req.method === 'POST') {
