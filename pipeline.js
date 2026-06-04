@@ -19,10 +19,10 @@
 // ══════════════════════════════════════════
 
 const CONFIG = {
-  // 支持 OpenAI 协议的任何 API（DeepSeek / AGNES / 通义千问等）
-  apiKey: "sk-254c5ff9561149539a534b3e1e8155a3",
-  baseUrl: "https://api.deepseek.com/v1",
-  model: "deepseek-chat",
+  // 部署到 Zeabur 后通过环境变量设置（Dashboard → 环境变量）
+  apiKey: process.env.DEEPSEEK_API_KEY || "sk-your-api-key-here",
+  baseUrl: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1",
+  model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
 
   // 课程默认参数
   defaultDuration: "15-20分钟",
