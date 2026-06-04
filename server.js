@@ -147,44 +147,92 @@ function getIndexHTML() {
   .classroom-link a { color: #2E75B6; font-weight: 500; text-decoration: none; }
   .classroom-link a:hover { text-decoration: underline; }
   .error-msg { color: #A32D2D; background: #FCEBEB; padding: 12px; border-radius: 8px; display: none; }
+  .tabs { display: flex; gap: 0; margin-bottom: 20px; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .tab { flex: 1; padding: 14px; text-align: center; cursor: pointer; font-size: 15px; font-weight: 500; border: none; background: white; color: #999; transition: all 0.2s; }
+  .tab.active { background: #2E75B6; color: white; }
+  .tab:hover:not(.active) { background: #F0F7FF; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .tutor-answer { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 24px; line-height: 1.8; font-size: 15px; white-space: pre-wrap; }
+  .form-row { display: flex; gap: 12px; margin-bottom: 12px; }
+  .form-row input { flex: 1; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+  .form-row input:focus { outline: none; border-color: #2E75B6; }
 </style>
 </head>
 <body>
 <div class="header">
   <h1>智慧学习大脑</h1>
-  <p>AI 课程生成引擎 — 输入主题，一分钟生成完整课程</p>
+  <p>AI 课程生成 + 一对一讲题辅导</p>
 </div>
 <div class="container">
-  <div class="input-box">
-    <textarea id="input" placeholder="请输入课程主题，例如：用Python教小学生做猜数字游戏"></textarea>
-    <br>
-    <button class="btn" id="generateBtn" onclick="generate()">生成课程</button>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('course')">生成课程</div>
+    <div class="tab" onclick="switchTab('tutor')">AI 讲题</div>
   </div>
 
-  <div class="loading" id="loading">
-    <div class="spinner"></div>
-    <p>正在生成课程，请稍候（约30秒）...</p>
-  </div>
-
-  <div class="error-msg" id="error"></div>
-
-  <div class="result" id="result">
-    <div class="course-card" id="courseHeader">
-      <div class="course-header">
-        <h2 id="courseTitle"></h2>
-        <div class="course-meta" id="courseMeta"></div>
+  <!-- 生成课程 -->
+  <div class="tab-content active" id="tab-course">
+    <div class="input-box">
+      <textarea id="input" placeholder="请输入课程主题，例如：用Python教小学生做猜数字游戏"></textarea>
+      <br>
+      <button class="btn" onclick="generate()">生成课程</button>
+    </div>
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>正在生成课程，请稍候（约30秒）...</p>
+    </div>
+    <div class="error-msg" id="error"></div>
+    <div class="result" id="result">
+      <div class="course-card" id="courseHeader">
+        <div class="course-header">
+          <h2 id="courseTitle"></h2>
+          <div class="course-meta" id="courseMeta"></div>
+        </div>
+        <div id="scenes"></div>
       </div>
-      <div id="scenes"></div>
-    </div>
-    <div id="quizzes"></div>
-    <div class="classroom-link">
-      <a href="${OPENMAIC_URL}" target="_blank">进入课堂模式 \u2192</a>
-      <p style="color:#999;font-size:12px;margin-top:4px">在 OpenMAIC 中查看和播放课件</p>
+      <div id="quizzes"></div>
+      <div class="classroom-link">
+        <a href="${OPENMAIC_URL}" target="_blank">进入课堂模式 \u2192</a>
+        <p style="color:#999;font-size:12px;margin-top:4px">在 OpenMAIC 中查看和播放课件</p>
+      </div>
     </div>
   </div>
+
+  <!-- AI 讲题 -->
+  <div class="tab-content" id="tab-tutor">
+    <div class="input-box">
+      <div class="form-row">
+        <input id="tutorGrade" placeholder="年级（如：三年级）" value="三年级">
+        <input id="tutorSubject" placeholder="学科（如：数学）" value="数学">
+      </div>
+      <textarea id="tutorInput" placeholder="输入题目或学习问题，例如：小明有5个苹果，给了小红2个，还剩几个？" style="min-height:60px"></textarea>
+      <br>
+      <button class="btn" onclick="askTutor()" style="background:#639922">AI 讲题</button>
+    </div>
+    <div class="loading" id="tutorLoading">
+      <div class="spinner"></div>
+      <p>AI 家教正在讲解，请稍候...</p>
+    </div>
+    <div class="error-msg" id="tutorError"></div>
+    <div class="tutor-answer" id="tutorAnswer" style="display:none"></div>
+  </div>
+
 </div>
 
 <script>
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  if (name === 'course') {
+    document.querySelector('.tab').classList.add('active');
+    document.getElementById('tab-course').classList.add('active');
+  } else {
+    document.querySelectorAll('.tab')[1].classList.add('active');
+    document.getElementById('tab-tutor').classList.add('active');
+  }
+}
+
 async function generate() {
   const input = document.getElementById('input').value.trim();
   if (!input) { alert('请输入课程主题'); return; }
@@ -245,6 +293,34 @@ function renderResult(data) {
   }
 
   document.getElementById('result').style.display = 'block';
+}
+
+async function askTutor() {
+  const question = document.getElementById('tutorInput').value.trim();
+  const grade = document.getElementById('tutorGrade').value.trim();
+  const subject = document.getElementById('tutorSubject').value.trim();
+  if (!question) { alert('请输入题目'); return; }
+
+  document.getElementById('tutorLoading').style.display = 'block';
+  document.getElementById('tutorAnswer').style.display = 'none';
+  document.getElementById('tutorError').style.display = 'none';
+
+  try {
+    const res = await fetch('/api/tutor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, grade, subject })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    document.getElementById('tutorAnswer').textContent = data.answer;
+    document.getElementById('tutorAnswer').style.display = 'block';
+  } catch (err) {
+    document.getElementById('tutorError').textContent = '讲题失败: ' + err.message;
+    document.getElementById('tutorError').style.display = 'block';
+  } finally {
+    document.getElementById('tutorLoading').style.display = 'none';
+  }
 }
 </script>
 </body>
