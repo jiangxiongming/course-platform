@@ -91,7 +91,7 @@ async function handleTutor(req, res) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: '请输入题目' }));
       }
-      const input = \`学生年级：\${grade || '未指定'}\\n学科：\${subject || '未指定'}\\n题目/问题：\${question}\`;
+      const input = `学生年级：${grade || '未指定'}\n学科：${subject || '未指定'}\n题目/问题：${question}`;
       const result = await callAI(PROMPT_TUTOR, input);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ answer: result }));
