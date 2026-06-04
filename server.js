@@ -193,51 +193,59 @@ function getIndexHTML() {
 <title>智慧学习大脑</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f7fa; color: #333; min-height: 100vh; }
-  .header { background: linear-gradient(135deg, #1F4E79, #2E75B6); color: white; padding: 24px 40px; }
-  .header h1 { font-size: 24px; font-weight: 600; }
-  .header p { font-size: 14px; opacity: 0.8; margin-top: 4px; }
-  .container { max-width: 900px; margin: 0 auto; padding: 24px; }
-  .input-box { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
-  .input-box textarea { width: 100%; min-height: 80px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; resize: vertical; }
-  .input-box textarea:focus { outline: none; border-color: #2E75B6; box-shadow: 0 0 0 3px rgba(46,117,182,0.1); }
-  .btn { background: #2E75B6; color: white; border: none; padding: 10px 28px; border-radius: 8px; font-size: 15px; cursor: pointer; margin-top: 12px; }
-  .btn:hover { background: #1F4E79; }
-  .btn:disabled { background: #999; cursor: not-allowed; }
-  .loading { display: none; text-align: center; padding: 40px; color: #666; }
-  .loading .spinner { border: 3px solid #eee; border-top: 3px solid #2E75B6; border-radius: 50%; width: 32px; height: 32px; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: linear-gradient(135deg, #f0f4ff 0%, #fbe8e8 50%, #f0f4ff 100%); color: #333; min-height: 100vh; }
+  .header { background: linear-gradient(135deg, #1a365d 0%, #2563eb 50%, #1d4ed8 100%); color: white; padding: 32px 40px; position: relative; overflow: hidden; }
+  .header::before { content: ''; position: absolute; top: -50%; right: -20%; width: 400px; height: 400px; background: rgba(255,255,255,0.05); border-radius: 50%; }
+  .header::after { content: ''; position: absolute; bottom: -30%; left: -10%; width: 300px; height: 300px; background: rgba(255,255,255,0.03); border-radius: 50%; }
+  .header h1 { font-size: 28px; font-weight: 700; position: relative; z-index: 1; letter-spacing: 1px; }
+  .header p { font-size: 15px; opacity: 0.85; margin-top: 6px; position: relative; z-index: 1; }
+  .container { max-width: 900px; margin: 0 auto; padding: 28px 24px; }
+  .input-box { background: white; border-radius: 16px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 20px; border: 1px solid rgba(0,0,0,0.04); }
+  .input-box textarea { width: 100%; min-height: 90px; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; resize: vertical; transition: border-color 0.2s, box-shadow 0.2s; font-family: inherit; }
+  .input-box textarea:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
+  .btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 12px 32px; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 14px; transition: transform 0.15s, box-shadow 0.2s; box-shadow: 0 4px 12px rgba(37,99,235,0.3); letter-spacing: 0.5px; }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(37,99,235,0.4); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { background: #9ca3af; box-shadow: none; cursor: not-allowed; transform: none; }
+  .btn-green { background: linear-gradient(135deg, #059669, #047857); box-shadow: 0 4px 12px rgba(5,150,105,0.3); }
+  .btn-green:hover { box-shadow: 0 6px 20px rgba(5,150,105,0.4); }
+  .loading { display: none; text-align: center; padding: 50px 40px; color: #6b7280; }
+  .loading .spinner { border: 3px solid #e5e7eb; border-top: 3px solid #2563eb; border-radius: 50%; width: 36px; height: 36px; animation: spin 0.7s linear infinite; margin: 0 auto 14px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .loading p { font-size: 14px; }
   .result { display: none; }
-  .course-card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 16px; overflow: hidden; }
-  .course-header { padding: 20px 24px; border-bottom: 1px solid #eee; }
-  .course-header h2 { font-size: 18px; color: #1F4E79; }
-  .course-meta { font-size: 13px; color: #999; margin-top: 4px; }
-  .scene { padding: 16px 24px; border-bottom: 1px solid #f0f0f0; }
+  .course-card { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 18px; overflow: hidden; border: 1px solid rgba(0,0,0,0.04); }
+  .course-header { padding: 22px 28px; border-bottom: 1px solid #f3f4f6; }
+  .course-header h2 { font-size: 20px; color: #1a365d; font-weight: 600; }
+  .course-meta { font-size: 13px; color: #9ca3af; margin-top: 4px; }
+  .scene { padding: 20px 28px; border-bottom: 1px solid #f9fafb; transition: background 0.15s; }
+  .scene:hover { background: #fafbfc; }
   .scene:last-child { border-bottom: none; }
-  .scene .tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; margin-bottom: 8px; }
-  .tag-slide { background: #E6F1FB; color: #185FA5; }
-  .tag-quiz { background: #EAF3DE; color: #3B6D11; }
-  .scene h3 { font-size: 15px; margin-bottom: 8px; }
-  .scene p, .scene li { font-size: 14px; line-height: 1.7; color: #555; }
-  .quiz-item { background: #FAFAFA; border-radius: 8px; padding: 16px; margin-top: 12px; }
-  .quiz-item .q { font-weight: 500; margin-bottom: 8px; }
-  .quiz-item .opt { padding: 4px 0; font-size: 13px; }
-  .quiz-item .ans { color: #3B6D11; font-weight: 500; margin-top: 6px; }
-  .quiz-item .diff { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; background: #FFF3CD; color: #856404; margin-left: 8px; }
-  .classroom-link { text-align: center; padding: 20px; background: #F0F7FF; border-radius: 12px; margin-top: 20px; }
-  .classroom-link a { color: #2E75B6; font-weight: 500; text-decoration: none; }
+  .scene .tag { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 10px; letter-spacing: 0.3px; }
+  .tag-slide { background: #dbeafe; color: #1d4ed8; }
+  .tag-quiz { background: #d1fae5; color: #047857; }
+  .scene h3 { font-size: 16px; font-weight: 600; margin-bottom: 10px; color: #1a365d; }
+  .scene p, .scene li { font-size: 14px; line-height: 1.8; color: #4b5563; }
+  .quiz-item { background: #f9fafb; border-radius: 12px; padding: 20px; margin-top: 14px; border: 1px solid #f3f4f6; }
+  .quiz-item .q { font-weight: 600; margin-bottom: 10px; color: #1a365d; }
+  .quiz-item .opt { padding: 5px 0; font-size: 14px; color: #4b5563; }
+  .quiz-item .ans { color: #047857; font-weight: 600; margin-top: 8px; font-size: 14px; }
+  .quiz-item .diff { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; background: #fef3c7; color: #92400e; margin-left: 8px; font-weight: 600; }
+  .classroom-link { text-align: center; padding: 22px; background: linear-gradient(135deg, #eff6ff, #dbeafe); border-radius: 16px; margin-top: 20px; }
+  .classroom-link a { color: #2563eb; font-weight: 600; text-decoration: none; font-size: 15px; }
   .classroom-link a:hover { text-decoration: underline; }
-  .error-msg { color: #A32D2D; background: #FCEBEB; padding: 12px; border-radius: 8px; display: none; }
-  .tabs { display: flex; gap: 0; margin-bottom: 20px; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-  .tab { flex: 1; padding: 14px; text-align: center; cursor: pointer; font-size: 15px; font-weight: 500; border: none; background: white; color: #999; transition: all 0.2s; }
-  .tab.active { background: #2E75B6; color: white; }
-  .tab:hover:not(.active) { background: #F0F7FF; }
+  .error-msg { color: #991b1b; background: #fef2f2; padding: 14px 18px; border-radius: 12px; display: none; font-size: 14px; border: 1px solid #fecaca; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.04); }
+  .tab { flex: 1; padding: 16px; text-align: center; cursor: pointer; font-size: 15px; font-weight: 500; border: none; background: white; color: #9ca3af; transition: all 0.2s; }
+  .tab.active { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; font-weight: 600; }
+  .tab:hover:not(.active) { background: #f3f4f6; color: #4b5563; }
   .tab-content { display: none; }
   .tab-content.active { display: block; }
-  .tutor-answer { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 24px; line-height: 1.8; font-size: 15px; white-space: pre-wrap; }
-  .form-row { display: flex; gap: 12px; margin-bottom: 12px; }
-  .form-row input { flex: 1; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
-  .form-row input:focus { outline: none; border-color: #2E75B6; }
+  .tutor-answer { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); padding: 28px; line-height: 2; font-size: 15px; white-space: pre-wrap; color: #374151; border: 1px solid rgba(0,0,0,0.04); }
+  .form-row { display: flex; gap: 14px; margin-bottom: 14px; }
+  .form-row input { flex: 1; padding: 12px 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: border-color 0.2s, box-shadow 0.2s; font-family: inherit; }
+  .form-row input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,0.1); }
+  @media (max-width: 640px) { .header { padding: 24px 20px; } .header h1 { font-size: 22px; } .container { padding: 16px; } .form-row { flex-direction: column; gap: 10px; } .scene { padding: 16px 20px; } .course-header { padding: 18px 20px; } .input-box { padding: 20px; } }
 </style>
 </head>
 <body>
