@@ -80,6 +80,62 @@ const PROMPT_TUTOR = `你是AI智能家教老师，专门为中国K12学生提�
 
 每次讲完必须出1-2道练习题。先了解学生信息，再针对性讲解。`;
 
+// ══════════════════════════════════════════
+// 生成试卷 Prompt
+// ══════════════════════════════════════════
+
+const PROMPT_PAPER = `你是一个出卷老师。根据用户指定的年级、学科生成一张模拟试卷。
+
+要求：
+1. 试卷包含 10 道题：选择题 5 道 + 填空题 3 道 + 解答题 2 道
+2. 难度分布：基础 40% + 中等 40% + 提高 20%
+3. 标注每道题的分值和难度
+4. 附参考答案和评分标准
+
+输出格式（严格JSON）：
+{
+  "title": "试卷标题",
+  "grade": "年级",
+  "subject": "学科",
+  "totalScore": 100,
+  "questions": [
+    { "type": "choice"|"fill"|"essay", "difficulty": "基础"|"中等"|"提高", "score": 5,
+      "question": "题目内容",
+      "options": ["A. xxx","B. xxx"],  // 选择题才有
+      "answer": "答案",
+      "analysis": "解析" }
+  ]
+}`;
+
+// POST /api/paper 处理函数
+async function handlePaper(req, res) {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', async () => {
+    try {
+      const { grade, subject, count = 10 } = JSON.parse(body);
+      if (!grade || !subject) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: '请指定年级和学科' }));
+      }
+      const input = `年级：${grade}\n学科：${subject}\n题数：${count}题`;
+      const result = await callAI(PROMPT_PAPER, input);
+      // 尝试提取 JSON
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(JSON.parse(jsonMatch[0])));
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ answer: result }));
+      }
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  });
+}
+
 // API: 讲题（直接调 AI，不经过 pipeline）
 async function handleTutor(req, res) {
   let body = '';
@@ -363,6 +419,34 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/' || pathname === '/index.html') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(getIndexHTML());
+    return;
+  }
+
+  // API: 生成试卷
+  if (pathname === '/api/paper' && req.method === 'POST') {
+    return handlePaper(req, res);
+  }
+
+  // API: 生成试卷（GET 版，供 WorkBuddy 调用）
+  if (pathname === '/api/paper-get' && req.method === 'GET') {
+    const grade = parsed.query.grade || '未指定';
+    const subject = parsed.query.subject || '未指定';
+    const count = parsed.query.count || 10;
+    try {
+      const input = `年级：${grade}\n学科：${subject}\n题数：${count}题`;
+      const result = await callAI(PROMPT_PAPER, input);
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(JSON.parse(jsonMatch[0])));
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ answer: result }));
+      }
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
     return;
   }
 
