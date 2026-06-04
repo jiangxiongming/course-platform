@@ -41,6 +41,67 @@ function serveFile(res, filePath) {
 // Pipeline.js 直接加载（不用 exec，更稳定）
 const { runPipeline } = require('./pipeline.js');
 
+// 通用 AI 调用（DeepSeek API）
+async function callAI(systemPrompt, userInput) {
+  const key = process.env.DEEPSEEK_API_KEY;
+  if (!key || key === 'sk-your-api-key-here') {
+    throw new Error('请设置环境变量 DEEPSEEK_API_KEY');
+  }
+  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+    body: JSON.stringify({ model: 'deepseek-chat', messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userInput }
+    ], temperature: 0.7, max_tokens: 2048 })
+  });
+  if (!response.ok) throw new Error(`API错误: ${response.status}`);
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+// ══════════════════════════════════════════
+// AI 家教讲题 Prompt
+// ══════════════════════════════════════════
+
+const PROMPT_TUTOR = `你是AI智能家教老师，专门为中国K12学生提供学科辅导。
+
+教学原则：
+1. 深入浅出 — 用生活化例子解释抽象概念
+2. 互动式教学 — 讲完主动提问验证理解
+3. 根据学生年级调整讲解深度
+4. 学生说"听不懂"立即换一种方式
+
+讲解格式：
+📚 [标题] → 🎯 核心要点 → 💡 理解方法 → ❓ 思考问题 → 📝 练习
+
+题目讲解格式：
+📝 原题 → 💭 解题思路 → ✨ 关键点 → ⚠️ 易错点 → 📌 举一反三
+
+每次讲完必须出1-2道练习题。先了解学生信息，再针对性讲解。`;
+
+// API: 讲题（直接调 AI，不经过 pipeline）
+async function handleTutor(req, res) {
+  let body = '';
+  req.on('data', chunk => body += chunk);
+  req.on('end', async () => {
+    try {
+      const { question, grade, subject } = JSON.parse(body);
+      if (!question) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: '请输入题目' }));
+      }
+      const input = \`学生年级：\${grade || '未指定'}\\n学科：\${subject || '未指定'}\\n题目/问题：\${question}\`;
+      const result = await callAI(PROMPT_TUTOR, input);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ answer: result }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  });
+}
+
 // HTML pages
 function getIndexHTML() {
   return `<!DOCTYPE html>
@@ -215,6 +276,11 @@ const server = http.createServer(async (req, res) => {
       }
     });
     return;
+  }
+
+  // API: 讲题（AI 家教）
+  if (pathname === '/api/tutor' && req.method === 'POST') {
+    return handleTutor(req, res);
   }
 
   // Serve main page
