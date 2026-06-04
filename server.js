@@ -366,6 +366,27 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // API: 讲题（GET 版，供 WorkBuddy 调用）
+  if (pathname === '/api/tutor-get' && req.method === 'GET') {
+    const question = parsed.query.question;
+    const grade = parsed.query.grade || '未指定';
+    const subject = parsed.query.subject || '未指定';
+    if (!question) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: '缺少 question 参数' }));
+    }
+    try {
+      const input = `学生年级：${grade}\n学科：${subject}\n题目/问题：${decodeURIComponent(question)}`;
+      const result = await callAI(PROMPT_TUTOR, input);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ answer: result }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
   // Serve static files
   const filePath = path.join(__dirname, pathname === '/pipeline.js' ? 'pipeline.js' : pathname);
   if (fs.existsSync(filePath)) {
