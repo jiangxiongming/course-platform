@@ -1,0 +1,9 @@
+{
+  "name": "course-platform",
+  "version": "1.0.0",
+  "description": "智慧学习大脑 - AI课程生成平台",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
