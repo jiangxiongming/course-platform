@@ -185,12 +185,57 @@ async function handleTutor(req, res) {
 
 // HTML pages
 function getIndexHTML() {
+  const defaultCode = 'zfx2026';
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>智慧学习大脑</title>
+<title>AI 智慧课堂</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .gate-box { background: white; border-radius: 20px; padding: 40px; width: 400px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center; }
+  .gate-box h1 { font-size: 22px; color: #1a365d; margin-bottom: 8px; }
+  .gate-box p { font-size: 14px; color: #6b7280; margin-bottom: 24px; }
+  .gate-box input { display: block; width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 16px; text-align: center; font-family: inherit; outline: none; transition: border-color 0.2s; }
+  .gate-box input:focus { border-color: #667eea; }
+  .gate-box .btn-gate { background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; padding: 12px 0; width: 100%; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 16px; transition: transform 0.15s; }
+  .gate-box .btn-gate:hover { transform: translateY(-1px); }
+  .gate-box .error-msg { color: #dc2626; font-size: 13px; margin-top: 12px; display: none; }
+  .app-container { display: none; }
+</style>
+</head>
+<body>
+<div class="gate-box" id="gate">
+  <h1>🔐 AI 智慧课堂</h1>
+  <p>请输入访问密码</p>
+  <input type="password" id="accessCode" placeholder="请输入密码" onkeydown="if(event.key==='Enter')checkCode()" autofocus>
+  <button class="btn-gate" onclick="checkCode()">进入</button>
+  <div class="error-msg" id="gateError"></div>
+</div>
+
+<script>
+function checkCode() {
+  const code = document.getElementById('accessCode').value.trim();
+  if (code === '${defaultCode}') {
+    localStorage.setItem('ai_access_granted', 'true');
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+  } else {
+    document.getElementById('gateError').textContent = '密码错误，请重新输入';
+    document.getElementById('gateError').style.display = 'block';
+  }
+}
+// 已经验证过的直接跳过
+if (localStorage.getItem('ai_access_granted') === 'true') {
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+}
+</script>
+
+<div class="app-container" id="app">
+
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: linear-gradient(135deg, #f0f4ff 0%, #fbe8e8 50%, #f0f4ff 100%); color: #333; min-height: 100vh; }
