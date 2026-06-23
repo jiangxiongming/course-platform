@@ -463,9 +463,62 @@ async function askTutor() {
 }
 
 // HTTP server
+// 访问日志
+const accessLog = [];
+function logAccess(req, status) {
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const ua = (req.headers['user-agent'] || '').substring(0, 60);
+  const entry = {
+    time: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
+    ip,
+    url: req.url.substring(0, 50),
+    status,
+    ua,
+  };
+  accessLog.unshift(entry);
+  if (accessLog.length > 200) accessLog.length = 200;
+  console.log(`[${entry.time}] ${entry.ip} → ${req.url} (${status})`);
+}
+
+// 自动记录所有响应的日志
+function wrapResponse(req, res) {
+  const origEnd = res.end.bind(res);
+  res.end = function(...args) {
+    logAccess(req, res.statusCode);
+    return origEnd(...args);
+  };
+}
+
 const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname;
+  wrapResponse(req, res);
+
+  // Admin 日志页面（需要密码）
+  if (pathname === '/admin') {
+    const pwd = parsed.query.pwd;
+    if (pwd === 'admin2026') {
+      const html = `<html><head><meta charset="utf-8"><title>访问日志</title>
+        <style>body{font-family:sans-serif;padding:20px;background:#f9fafb}
+        table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+        th,td{padding:8px 12px;text-align:left;border-bottom:1px solid #eee;font-size:13px}
+        th{background:#1a365d;color:white;font-weight:600}
+        tr:hover{background:#f3f4f6}
+        .count{font-size:14px;color:#6b7280;margin-bottom:12px}
+        h1{font-size:20px;margin-bottom:8px;color:#1a365d}</style></head>
+        <body><h1>📋 访问日志</h1>
+        <div class="count">最近 ${accessLog.length} 条记录</div>
+        <table><tr><th>时间</th><th>IP</th><th>URL</th><th>状态</th><th>设备</th></tr>
+        ${accessLog.slice(0, 100).map(e => `<tr><td>${e.time}</td><td>${e.ip}</td><td>${e.url}</td><td>${e.status}</td><td>${e.ua}</td></tr>`).join('')}
+        </table></body></html>`;
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+    } else {
+      res.writeHead(401);
+      res.end('密码错误');
+    }
+    return;
+  }
 
   // 访问令牌校验（API 路由需要令牌，网页不需要）
   if (pathname.startsWith('/api/') && ACCESS_TOKEN) {
