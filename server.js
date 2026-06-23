@@ -17,6 +17,44 @@ const url = require('url');
 const PORT = process.env.PORT || 3000;
 const OPENMAIC_URL = "https://zfx2026.zeabur.app";
 
+// ══════════════════════════════════════════
+// 邀请码系统（存储到 data/invite_codes.json）
+// ══════════════════════════════════════════
+const DATA_DIR = path.join(__dirname, 'data');
+const CODES_FILE = path.join(DATA_DIR, 'invite_codes.json');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(CODES_FILE)) fs.writeFileSync(CODES_FILE, '[]');
+
+function loadCodes() {
+  try { return JSON.parse(fs.readFileSync(CODES_FILE, 'utf8')); } catch { return []; }
+}
+function saveCodes(codes) { fs.writeFileSync(CODES_FILE, JSON.stringify(codes, null, 2)); }
+
+function generateInviteCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code;
+  const existing = new Set(loadCodes().map(c => c.code));
+  do {
+    code = '';
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  } while (existing.has(code));
+  const codes = loadCodes();
+  codes.push({ code, used: false, createdAt: new Date().toISOString(), usedAt: null, usedBy: null });
+  saveCodes(codes);
+  return code;
+}
+
+function useInviteCode(code, ip) {
+  const codes = loadCodes();
+  const found = codes.find(c => c.code === code && !c.used);
+  if (!found) return false;
+  found.used = true;
+  found.usedAt = new Date().toISOString();
+  found.usedBy = ip;
+  saveCodes(codes);
+  return true;
+}
+
 // MIME types
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -185,7 +223,6 @@ async function handleTutor(req, res) {
 
 // HTML pages
 function getIndexHTML() {
-  const defaultCode = 'zfx2026';
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -209,26 +246,35 @@ function getIndexHTML() {
 <body>
 <div class="gate-box" id="gate">
   <h1>🔐 AI 智慧课堂</h1>
-  <p>请输入访问密码</p>
-  <input type="password" id="accessCode" placeholder="请输入密码" onkeydown="if(event.key==='Enter')checkCode()" autofocus>
-  <button class="btn-gate" onclick="checkCode()">进入</button>
+  <p>请输入邀请码</p>
+  <input type="text" id="inviteCode" placeholder="请输入6位邀请码" onkeydown="if(event.key==='Enter')checkInvite()" autofocus style="text-transform:uppercase;letter-spacing:4px;font-weight:600">
+  <button class="btn-gate" onclick="checkInvite()">进入</button>
   <div class="error-msg" id="gateError"></div>
 </div>
 
 <script>
-function checkCode() {
-  const code = document.getElementById('accessCode').value.trim();
-  if (code === '${defaultCode}') {
-    localStorage.setItem('ai_access_granted', 'true');
-    document.getElementById('gate').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-  } else {
-    document.getElementById('gateError').textContent = '密码错误，请重新输入';
-    document.getElementById('gateError').style.display = 'block';
-  }
+function checkInvite() {
+  const code = document.getElementById('inviteCode').value.trim().toUpperCase();
+  if (!code) { document.getElementById('gateError').textContent = '请输入邀请码'; document.getElementById('gateError').style.display = 'block'; return; }
+  document.getElementById('gateError').style.display = 'none';
+  fetch('/api/check-invite?code='+encodeURIComponent(code))
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        localStorage.setItem('ai_invite_code', code);
+        document.getElementById('gate').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+      } else {
+        document.getElementById('gateError').textContent = '邀请码无效或已使用';
+        document.getElementById('gateError').style.display = 'block';
+      }
+    })
+    .catch(() => {
+      document.getElementById('gateError').textContent = '验证失败，请稍后重试';
+      document.getElementById('gateError').style.display = 'block';
+    });
 }
-// 已经验证过的直接跳过
-if (localStorage.getItem('ai_access_granted') === 'true') {
+if (localStorage.getItem('ai_invite_code')) {
   document.getElementById('gate').style.display = 'none';
   document.getElementById('app').style.display = 'block';
 }
@@ -465,7 +511,8 @@ async function askTutor() {
 // HTTP server
 // 访问日志
 const accessLog = [];
-function logAccess(req, status) {
+let lastLoggedCode = '';
+function logAccess(req, status, codeInfo) {
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
   const ua = (req.headers['user-agent'] || '').substring(0, 60);
   const entry = {
@@ -474,17 +521,18 @@ function logAccess(req, status) {
     url: req.url.substring(0, 50),
     status,
     ua,
+    code: codeInfo || '',
   };
   accessLog.unshift(entry);
-  if (accessLog.length > 200) accessLog.length = 200;
-  console.log(`[${entry.time}] ${entry.ip} → ${req.url} (${status})`);
+  if (accessLog.length > 500) accessLog.length = 500;
+  console.log(`[${entry.time}] ${entry.ip} ${entry.code ? '('+entry.code+')' : ''}→ ${req.url} (${status})`);
 }
 
 // 自动记录所有响应的日志
-function wrapResponse(req, res) {
+function wrapResponse(req, res, codeInfo) {
   const origEnd = res.end.bind(res);
   res.end = function(...args) {
-    logAccess(req, res.statusCode);
+    logAccess(req, res.statusCode, codeInfo || '');
     return origEnd(...args);
   };
 }
@@ -494,29 +542,93 @@ const server = http.createServer(async (req, res) => {
   const pathname = parsed.pathname;
   wrapResponse(req, res);
 
-  // Admin 日志页面（需要密码）
+  // ═══ Admin 后台（密码保护） ═══
   if (pathname === '/admin') {
     const pwd = parsed.query.pwd;
     if (pwd === 'admin2026') {
-      const html = `<html><head><meta charset="utf-8"><title>访问日志</title>
-        <style>body{font-family:sans-serif;padding:20px;background:#f9fafb}
-        table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06)}
-        th,td{padding:8px 12px;text-align:left;border-bottom:1px solid #eee;font-size:13px}
-        th{background:#1a365d;color:white;font-weight:600}
-        tr:hover{background:#f3f4f6}
-        .count{font-size:14px;color:#6b7280;margin-bottom:12px}
-        h1{font-size:20px;margin-bottom:8px;color:#1a365d}</style></head>
-        <body><h1>📋 访问日志</h1>
-        <div class="count">最近 ${accessLog.length} 条记录</div>
-        <table><tr><th>时间</th><th>IP</th><th>URL</th><th>状态</th><th>设备</th></tr>
-        ${accessLog.slice(0, 100).map(e => `<tr><td>${e.time}</td><td>${e.ip}</td><td>${e.url}</td><td>${e.status}</td><td>${e.ua}</td></tr>`).join('')}
-        </table></body></html>`;
+      const codes = loadCodes();
+      const pending = codes.filter(c => !c.used);
+      const used = codes.filter(c => c.used);
+
+      // 如果有点击生成邀请码
+      if (parsed.query.action === 'generate') {
+        const newCode = generateInviteCode();
+        res.writeHead(302, { Location: '/admin?pwd=admin2026&msg=已生成码 '+newCode });
+        return res.end();
+      }
+
+      const msg = parsed.query.msg || '';
+      const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>管理后台</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f4f6;padding:20px;color:#333;max-width:900px;margin:0 auto}
+h1{font-size:22px;color:#1a365d;margin-bottom:4px}
+.sub{color:#6b7280;font-size:13px;margin-bottom:20px}
+.card{background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);padding:20px;margin-bottom:16px;overflow:hidden}
+.card h2{font-size:16px;color:#1a365d;margin-bottom:12px}
+.btn{background:#2563eb;color:white;border:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer}
+.btn:hover{background:#1d4ed8}
+.msg{color:#047857;font-size:13px;padding:8px 12px;background:#d1fae5;border-radius:8px;margin-bottom:12px;display:${msg?'block':'none'}}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 6px;border-bottom:2px solid #e5e7eb;color:#6b7280;font-weight:600}
+td{padding:8px 6px;border-bottom:1px solid #f3f4f6}
+.badge{padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-ok{background:#d1fae5;color:#047857}
+.badge-used{background:#fef3c7;color:#92400e}
+.empty{color:#9ca3af;font-size:13px;padding:12px 0}
+.log-code{font-family:monospace;font-size:12px;background:#e5e7eb;padding:1px 5px;border-radius:3px}
+.admin-badge{background:#dbeafe;color:#1d4ed8}
+@media(max-width:640px){th,td{font-size:12px;padding:6px 4px}}</style></head>
+<body><h1>📋 管理后台</h1><p class="sub">AI 智慧课堂 · 邀请码管理</p>
+
+${msg ? '<div class="msg">'+msg+'</div>' : ''}
+
+<div class="card">
+<h2>生成邀请码</h2>
+<a href="/admin?pwd=admin2026&action=generate" class="btn">+ 生成新邀请码</a>
+<p style="color:#6b7280;font-size:12px;margin-top:8px">点击一次生成一个 6 位随机码</p>
+</div>
+
+<div class="card">
+<h2>待使用的邀请码 (${pending.length})</h2>
+${pending.length === 0 ? '<div class="empty">暂无待使用邀请码</div>' :
+'<table><tr><th>邀请码</th><th>生成时间</th></tr>' +
+pending.map(c => '<tr><td><span class="badge badge-ok">'+c.code+'</span></td><td>'+new Date(c.createdAt).toLocaleString('zh-CN')+'</td></tr>').join('')+'</table>'}
+</div>
+
+<div class="card">
+<h2>已使用的邀请码 (${used.length})</h2>
+${used.length === 0 ? '<div class="empty">暂无使用记录</div>' :
+'<table><tr><th>邀请码</th><th>使用时间</th><th>IP</th></tr>' +
+used.slice().reverse().slice(0,50).map(c => '<tr><td><span class="badge badge-used">'+c.code+'</span></td><td>'+new Date(c.usedAt).toLocaleString('zh-CN')+'</td><td>'+c.usedBy+'</td></tr>').join('')+'</table>'}
+</div>
+
+<div class="card">
+<h2>最近的访问记录 (${accessLog.length})</h2>
+<table><tr><th>时间</th><th>邀请码</th><th>IP</th><th>URL</th><th>设备</th></tr>
+${accessLog.slice(0, 80).map(e =>
+'<tr><td>'+e.time+'</td><td>'+(e.code ? '<span class="log-code '+(e.code==='管理员'?'admin-badge':'')+'">'+e.code+'</span>' : '-')+'</td><td>'+e.ip+'</td><td style="font-size:11px">'+e.url+'</td><td style="font-size:11px;color:#6b7280">'+e.ua+'</td></tr>'
+).join('')}</table></div>
+
+</body></html>`;
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
     } else {
-      res.writeHead(401);
+      res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('密码错误');
     }
+    return;
+  }
+
+  // ═══ API: 校验邀请码 ═══
+  if (pathname === '/api/check-invite' && req.method === 'GET') {
+    const code = (parsed.query.code || '').toUpperCase().trim();
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    if (!code) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false }));
+    }
+    const success = useInviteCode(code, ip);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: success }));
     return;
   }
 
